@@ -137,9 +137,14 @@ func SetupApplication(ctx context.Context) (*Application, error) {
 		}
 	}
 
+	// Kick needs no credentials; it uses the public web API.
+	platformKick := platform.NewKickConnection()
+
 	authService := auth.NewService(db, &envConfig)
 	channelService := channel.NewService(db, platformTwitch)
+	channelService.PlatformKick = platformKick
 	vodService := vod.NewService(db, riverClient, platformTwitch)
+	vodService.PlatformKick = platformKick
 	queueService := queue.NewService(db, vodService, channelService, riverClient)
 	blockedVodService := blocked.NewService(db)
 	notificationService := notification.NewService(db)
@@ -152,10 +157,12 @@ func SetupApplication(ctx context.Context) (*Application, error) {
 	}
 
 	archiveService := archive.NewService(db, channelService, vodService, queueService, blockedVodService, riverClient, platformTwitch)
+	archiveService.PlatformKick = platformKick
 	adminService := admin.NewService(db)
 	userService := user.NewService(db)
 	chapterService := chapter.NewService(db)
 	liveService := live.NewService(db, archiveService, platformTwitch, chapterService, queueService, notificationService)
+	liveService.PlatformKick = platformKick
 	if err := liveService.ResetLiveStatus(ctx); err != nil {
 		return nil, err
 	}

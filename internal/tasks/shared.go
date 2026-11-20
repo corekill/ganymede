@@ -820,3 +820,20 @@ func (w UpdateChannelStorageUsageWorker) Work(ctx context.Context, job *river.Jo
 	logger.Info().Msg("task completed")
 	return nil
 }
+
+// PlatformForChannel returns the platform implementation that owns channel.
+func PlatformForChannel(ctx context.Context, channel *ent.Channel) (platform.Platform, error) {
+	if channel != nil && channel.Platform == utils.PlatformKick {
+		kick, ok := ctx.Value(tasks_shared.PlatformKickKey).(platform.Platform)
+		if !ok || kick == nil {
+			return nil, errors.New("kick platform not found in context")
+		}
+		return kick, nil
+	}
+	return PlatformFromContext(ctx)
+}
+
+// channelLogin returns the platform login used for API calls.
+func channelLogin(channel *ent.Channel) string {
+	return platform.ChannelLogin(channel.Name, channel.ExtLogin)
+}

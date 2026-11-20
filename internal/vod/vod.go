@@ -30,9 +30,10 @@ import (
 )
 
 type Service struct {
-	Store       *database.Database
-	RiverClient *tasks_client.RiverClient
-	Platform    platform.Platform
+	Store        *database.Database
+	RiverClient  *tasks_client.RiverClient
+	Platform     platform.Platform
+	PlatformKick platform.Platform
 }
 
 func NewService(store *database.Database, riverClient *tasks_client.RiverClient, platform platform.Platform) *Service {
@@ -673,6 +674,11 @@ func (s *Service) GetChatEmotes(ctx context.Context, vodID uuid.UUID) (*platform
 			})
 		}
 		// no embedded emotes; fetch emotes from remote providers
+	case v.Platform == utils.PlatformKick:
+		// Third-party providers are keyed by Twitch IDs; only Kick's own emotes apply.
+		emotes.Emotes = append(emotes.Emotes, kickFallback(ctx, s, v, func(k platform.Platform, slug string) ([]platform.Emote, error) {
+			return k.GetChannelEmotes(ctx, slug)
+		})...)
 	default:
 		log.Debug().Str("video_id", v.ID.String()).Msg("chat emotes are not embedded; fetching emotes from remote providers")
 
@@ -884,6 +890,10 @@ func (s *Service) GetChatBadges(ctx context.Context, vodID uuid.UUID) (*platform
 
 		}
 
+	} else if v.Platform == utils.PlatformKick {
+		badgeResp.Badges = append(badgeResp.Badges, kickFallback(ctx, s, v, func(k platform.Platform, slug string) ([]platform.Badge, error) {
+			return k.GetChannelBadges(ctx, slug)
+		})...)
 	} else {
 		log.Debug().Str("vod_id", vodID.String()).Msg("No embedded badges found; fetching from provider")
 		// get streamer id from chat

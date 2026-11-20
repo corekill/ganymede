@@ -537,3 +537,18 @@ func (k *KickConnection) GetStreams(ctx context.Context, limit int) ([]LiveStrea
 }
 
 var _ Platform = (*KickConnection)(nil)
+
+// Select returns the platform implementation for p. Unknown/empty values are
+// treated as Twitch, matching the database default.
+func Select(p utils.VideoPlatform, twitch, kick Platform) (Platform, error) {
+	if p == utils.PlatformKick {
+		if kick == nil {
+			return nil, errors.New("kick platform is not configured")
+		}
+		return kick, nil
+	}
+	if twitch == nil {
+		return nil, errors.New("twitch platform is not configured; check TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET")
+	}
+	return twitch, nil
+}

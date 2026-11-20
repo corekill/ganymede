@@ -156,7 +156,7 @@ func (w SaveVideoInfoWorker) Work(ctx context.Context, job *river.Job[SaveVideoI
 		return err
 	}
 
-	platformService, err := PlatformFromContext(ctx)
+	platformService, err := PlatformForChannel(ctx, &dbItems.Channel)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (w SaveVideoInfoWorker) Work(ctx context.Context, job *river.Job[SaveVideoI
 	var info interface{}
 
 	if dbItems.Queue.LiveArchive {
-		info, err = platformService.GetLiveStream(ctx, dbItems.Channel.Name)
+		info, err = platformService.GetLiveStream(ctx, channelLogin(&dbItems.Channel))
 		if err != nil {
 			return err
 		}
@@ -290,7 +290,7 @@ func (w DownloadTumbnailsWorker) Work(ctx context.Context, job *river.Job[Downlo
 		return err
 	}
 
-	platformService, err := PlatformFromContext(ctx)
+	platformService, err := PlatformForChannel(ctx, &dbItems.Channel)
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (w DownloadTumbnailsWorker) Work(ctx context.Context, job *river.Job[Downlo
 
 	// create the correct URL for each thumbnail type
 	if dbItems.Queue.LiveArchive {
-		info, err := platformService.GetLiveStream(ctx, dbItems.Channel.Name)
+		info, err := platformService.GetLiveStream(ctx, channelLogin(&dbItems.Channel))
 		if err != nil {
 			return err
 		}
@@ -430,13 +430,13 @@ func (w UpdateLiveStreamMetadataWorker) Work(ctx context.Context, job *river.Job
 		return err
 	}
 
-	platformService, err := PlatformFromContext(ctx)
+	platformService, err := PlatformForChannel(ctx, &dbItems.Channel)
 	if err != nil {
 		return err
 	}
 
 	// Manually update the live stream metadata
-	info, err := platformService.GetLiveStream(ctx, dbItems.Channel.Name)
+	info, err := platformService.GetLiveStream(ctx, channelLogin(&dbItems.Channel))
 	if err != nil {
 		return err
 	}
@@ -495,10 +495,6 @@ func (w UpdateStreamVideoIdWorker) Work(ctx context.Context, job *river.Job[Upda
 		return err
 	}
 
-	platformService, err := PlatformFromContext(ctx)
-	if err != nil {
-		return err
-	}
 
 	var channels []*ent.Channel
 	var videos []*ent.Vod
@@ -538,6 +534,11 @@ func (w UpdateStreamVideoIdWorker) Work(ctx context.Context, job *river.Job[Upda
 			if err != nil {
 				return err
 			}
+		}
+
+		platformService, err := PlatformForChannel(ctx, channel)
+		if err != nil {
+			return err
 		}
 
 		// get all channel videos from platform

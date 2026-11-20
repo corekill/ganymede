@@ -72,14 +72,21 @@ func SetupWorker(ctx context.Context) (*tasks_worker.RiverWorkerClient, error) {
 		}
 	}
 
+	// Kick needs no credentials; it uses the public web API.
+	platformKick := platform.NewKickConnection()
+
 	chapterService := chapter.NewService(db)
 	channelService := channel.NewService(db, platformTwitch)
+	channelService.PlatformKick = platformKick
 	vodService := vod.NewService(db, riverClient, platformTwitch)
+	vodService.PlatformKick = platformKick
 	queueService := queue.NewService(db, vodService, channelService, riverClient)
 	blockedVodsService := blocked.NewService(db)
 	notificationService := notification.NewService(db)
 	archiveService := archive.NewService(db, channelService, vodService, queueService, blockedVodsService, riverClient, platformTwitch)
+	archiveService.PlatformKick = platformKick
 	liveService := live.NewService(db, archiveService, platformTwitch, chapterService, queueService, notificationService)
+	liveService.PlatformKick = platformKick
 
 	// initialize river
 	riverWorkerClient, err := tasks_worker.NewRiverWorker(tasks_worker.RiverWorkerInput{
@@ -89,6 +96,7 @@ func SetupWorker(ctx context.Context) (*tasks_worker.RiverWorkerClient, error) {
 		DB:                      db,
 		LiveService:             liveService,
 		PlatformTwitch:          platformTwitch,
+		PlatformKick:            platformKick,
 		NotificationService:     notificationService,
 		Enqueuer:                riverClient,
 		VideoDownloadWorkers:    envConfig.MaxVideoDownloadExecutions,
