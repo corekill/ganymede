@@ -154,12 +154,16 @@ func convertKickChatMessage(msg kickChatMessage, receivedAt time.Time) utils.Liv
 			if b.Name == "" || b.ImageURL == "" {
 				continue
 			}
+			// One badge name per image: Kick reuses names like "level" for
+			// different images, and the playback API keeps one version of
+			// non-Twitch-special badges.
+			name := b.Name + "_" + kickBadgeVersion(b.ImageURL)
 			comment.Author.Badges = append(comment.Author.Badges, utils.LiveCommentBadge{
-				ID:      b.Name,
-				Name:    b.Name,
+				ID:      name,
+				Name:    name,
 				Title:   b.Name,
-				Version: kickBadgeVersion(b.ImageURL),
-				Icons:   []utils.LiveCommentBadgeIcon{{ID: b.Name, URL: b.ImageURL}},
+				Version: "1",
+				Icons:   []utils.LiveCommentBadgeIcon{{ID: name, URL: b.ImageURL}},
 			})
 		}
 	} else {

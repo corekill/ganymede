@@ -77,13 +77,18 @@ func EmbedKickChatAssets(ctx context.Context, liveChatPath, tdlPath, outPath str
 	comments = nil
 
 	type badgeKey struct{ name, version string }
-	badgeURLs := map[badgeKey]string{}
+	type badgeSource struct{ url, title string }
+	badgeURLs := map[badgeKey]badgeSource{}
 	if err := forEachLiveComment(liveChatPath, func(lc utils.LiveComment) {
 		for _, b := range lc.Author.Badges {
 			if len(b.Icons) == 0 || b.Icons[0].URL == "" {
 				continue
 			}
-			badgeURLs[badgeKey{b.Name, fmt.Sprintf("%v", b.Version)}] = b.Icons[0].URL
+			title := b.Title
+			if title == "" {
+				title = b.Name
+			}
+			badgeURLs[badgeKey{b.Name, fmt.Sprintf("%v", b.Version)}] = badgeSource{b.Icons[0].URL, title}
 		}
 	}); err != nil {
 		log.Warn().Err(err).Msg("could not read kick live chat for badge images; badges will not be embedded")
@@ -93,8 +98,8 @@ func EmbedKickChatAssets(ctx context.Context, liveChatPath, tdlPath, outPath str
 	for id := range emoteNames {
 		urls = append(urls, platform.KickEmoteURL(id))
 	}
-	for _, u := range badgeURLs {
-		urls = append(urls, u)
+	for _, b := range badgeURLs {
+		urls = append(urls, b.url)
 	}
 	assets := fetchKickAssets(ctx, urls)
 	if ctx.Err() != nil {
@@ -113,15 +118,15 @@ func EmbedKickChatAssets(ctx context.Context, liveChatPath, tdlPath, outPath str
 	}
 
 	badgesByName := map[string]map[string]chat.ChatTwitchBadgeVersion{}
-	for k, u := range badgeURLs {
-		a, ok := assets[u]
+	for k, src := range badgeURLs {
+		a, ok := assets[src.url]
 		if !ok {
 			continue
 		}
 		if badgesByName[k.name] == nil {
 			badgesByName[k.name] = map[string]chat.ChatTwitchBadgeVersion{}
 		}
-		badgesByName[k.name][k.version] = chat.ChatTwitchBadgeVersion{Title: k.name, Description: k.name, Bytes: a.data}
+		badgesByName[k.name][k.version] = chat.ChatTwitchBadgeVersion{Title: src.title, Description: src.title, Bytes: a.data}
 	}
 	badges := make([]chat.ChatTwitchBadge, 0, len(badgesByName))
 	for name, versions := range badgesByName {

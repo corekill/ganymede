@@ -17,7 +17,7 @@ func TestReplaceKickEmoteTokens(t *testing.T) {
 	require.Equal(t, "hi KEKW x a KEKW", body)
 	require.Len(t, emotes, 2)
 	require.Equal(t, "37226", emotes[0].ID)
-	require.Equal(t, []string{"3-6", "13-16"}, emotes[0].Locations)
+	require.Equal(t, []string{"3-6", "12-15"}, emotes[0].Locations)
 	require.Equal(t, []string{"10-10"}, emotes[1].Locations)
 	for _, e := range emotes {
 		for _, loc := range e.Locations {
@@ -55,7 +55,9 @@ func TestConvertKickChatMessage(t *testing.T) {
 	require.Equal(t, "#FFAE76", c.Colour)
 	require.Equal(t, time.Date(2026, 11, 20, 3, 3, 23, 0, time.UTC).UnixMicro(), c.Timestamp)
 	require.Len(t, c.Author.Badges, 1)
-	require.Equal(t, "Flyby", c.Author.Badges[0].Name)
+	require.Equal(t, "Flyby_"+kickBadgeVersion("https://ext.cdn.kick.com/chat/badges/Flyby.png"), c.Author.Badges[0].Name)
+	require.Equal(t, "Flyby", c.Author.Badges[0].Title)
+	require.Equal(t, "1", c.Author.Badges[0].Version)
 	require.Equal(t, "https://ext.cdn.kick.com/chat/badges/Flyby.png", c.Author.Badges[0].Icons[0].URL)
 }
 
@@ -106,8 +108,9 @@ func TestKickChatThroughTDLConverter(t *testing.T) {
 	out, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(out, &converted))
-	require.Len(t, converted.Comments, 1)
-	cm := converted.Comments[0]
+	// The converter prepends a synthetic "Initial chat message" comment.
+	require.Len(t, converted.Comments, 2)
+	cm := converted.Comments[1]
 	require.Equal(t, "like brake collectiblesGoldenNAHH", cm.Message.Body)
 	require.InDelta(t, 203, cm.ContentOffsetSeconds, 1)
 	var emoteFrag bool
