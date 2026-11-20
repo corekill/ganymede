@@ -495,7 +495,6 @@ func (w UpdateStreamVideoIdWorker) Work(ctx context.Context, job *river.Job[Upda
 		return err
 	}
 
-
 	var channels []*ent.Channel
 	var videos []*ent.Vod
 
