@@ -1,4 +1,4 @@
-# Podpora Kicku v Ganymede (fork corekill/ganymede, větev `kick-support`)
+# Podpora Kicku v Ganymede (fork corekill/ganymede, větev `kick-live`)
 
 Fork vychází z upstream **v5.0.3** (nejnovější release k 2026-11-20). Cíl: nahrávat živé
 streamy z kick.com do stejné knihovny jako Twitch – video, chat a metadata – bez rozbití
@@ -30,6 +30,13 @@ shodný s v5.0.3) a patchuje **yt-dlp** (Twitch extractor: GQL přes `requests`,
 query `PlaybackAccessToken`). V Dockerfile je jeho aplikace **zakomentovaná** – v buildu se
 nepoužívá ani upstream, ani u nás. `/opt/ganymede-main` je jen starší (únor 2026) snapshot
 upstreamu, běžící kontejner z něj buildovaný není. Pro Kick je patch irelevantní.
+
+### Upstreamový prototyp `kick-support`
+Fork zdědil upstreamovou větev `kick-support` (1 commit Zibbp, 2025-10-01, nad 4.x). Je
+nedokončená: vyžaduje oficiální Kick OAuth aplikaci (`KICK_CLIENT_ID/SECRET`), nahrává přes
+yt-dlp místo dnešní ffmpeg/HLS pipeline a má natvrdo starý Pusher klíč, který už Kick
+nepřijímá (ověřeno: `4001 App key ... not in this cluster`). Proto na ní nestavíme; naše
+práce je ve větvi `kick-live` nad v5.0.3 a upstreamovou větev necháváme beze změny.
 
 ## 2. Návrh
 
