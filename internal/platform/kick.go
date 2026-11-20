@@ -420,7 +420,46 @@ func (k *KickConnection) GetLiveStream(ctx context.Context, channelName string) 
 		return nil, fmt.Errorf("failed to fetch stream for channel %s: %w", channelName, ErrorNoStreamsFound{})
 	}
 	info := kickLiveStreamInfo(ch)
+	// The channel document's stream.kick.com thumbnail is not publicly
+	// readable; the livestream endpoint links the images.kick.com renditions.
+	if thumb := k.livestreamThumbnail(ctx, ch.Slug); thumb != "" {
+		info.ThumbnailURL = thumb
+	}
 	return &info, nil
+}
+
+// livestreamThumbnail returns the largest live thumbnail rendition, or "" if
+// unavailable. Thumbnails are cosmetic, so failures are only logged.
+func (k *KickConnection) livestreamThumbnail(ctx context.Context, slug string) string {
+	var resp struct {
+		Data struct {
+			Thumbnail struct {
+				Src    string `json:"src"`
+				Srcset string `json:"srcset"`
+			} `json:"thumbnail"`
+		} `json:"data"`
+	}
+	if err := k.doJSON(ctx, http.MethodGet, fmt.Sprintf("%s/api/v2/channels/%s/livestream", kickBaseURL, url.PathEscape(slug)), nil, &resp); err != nil {
+		log.Debug().Err(err).Str("channel", slug).Msg("failed to fetch kick livestream thumbnail")
+		return ""
+	}
+	return largestSrcsetURL(resp.Data.Thumbnail.Srcset, resp.Data.Thumbnail.Src)
+}
+
+// largestSrcsetURL picks the widest "url 1920w" candidate, else fallback.
+func largestSrcsetURL(srcset, fallback string) string {
+	best, bestWidth := fallback, 0
+	for _, candidate := range strings.Split(srcset, ",") {
+		fields := strings.Fields(strings.TrimSpace(candidate))
+		if len(fields) != 2 || !strings.HasSuffix(fields[1], "w") {
+			continue
+		}
+		width, err := strconv.Atoi(strings.TrimSuffix(fields[1], "w"))
+		if err == nil && width > bestWidth {
+			best, bestWidth = fields[0], width
+		}
+	}
+	return best
 }
 
 // GetLiveStreams is not supported because Kick lookups are by slug; use

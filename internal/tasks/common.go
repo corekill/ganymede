@@ -14,6 +14,7 @@ import (
 	"github.com/zibbp/ganymede/ent/vod"
 	"github.com/zibbp/ganymede/internal/chapter"
 	"github.com/zibbp/ganymede/internal/config"
+	"github.com/zibbp/ganymede/internal/exec"
 	"github.com/zibbp/ganymede/internal/platform"
 	"github.com/zibbp/ganymede/internal/storagetemplate"
 	"github.com/zibbp/ganymede/internal/utils"
@@ -327,13 +328,34 @@ func (w DownloadTumbnailsWorker) Work(ctx context.Context, job *river.Job[Downlo
 		webResThumbnailUrl = replaceThumbnailPlaceholders(thumbnailUrl, "640", "360", dbItems.Queue.LiveArchive)
 	}
 
-	err = utils.DownloadAndSaveFile(ctx, fullResThumbnailUrl, dbItems.Video.ThumbnailPath)
-	if err != nil {
-		return err
-	}
-	err = utils.DownloadAndSaveFile(ctx, webResThumbnailUrl, dbItems.Video.WebThumbnailPath)
-	if err != nil {
-		return err
+	if dbItems.Channel.Platform == utils.PlatformKick {
+		// Kick thumbnails come from an unofficial CDN; never let them block
+		// the capture that follows in the chain.
+		for _, t := range []struct{ url, path string }{
+			{fullResThumbnailUrl, dbItems.Video.ThumbnailPath},
+			{webResThumbnailUrl, dbItems.Video.WebThumbnailPath},
+		} {
+			if t.url == "" {
+				log.Warn().Str("queue_id", job.Args.Input.QueueId.String()).Msg("kick stream has no thumbnail; skipping")
+				continue
+			}
+			if err := utils.DownloadAndSaveFile(ctx, t.url, t.path); err != nil {
+				log.Warn().Err(err).Str("queue_id", job.Args.Input.QueueId.String()).Msg("failed to download kick thumbnail; continuing")
+				continue
+			}
+			if err := exec.EnsureImageMatchesExtension(ctx, t.path); err != nil {
+				log.Warn().Err(err).Str("queue_id", job.Args.Input.QueueId.String()).Msg("failed to convert kick thumbnail")
+			}
+		}
+	} else {
+		err = utils.DownloadAndSaveFile(ctx, fullResThumbnailUrl, dbItems.Video.ThumbnailPath)
+		if err != nil {
+			return err
+		}
+		err = utils.DownloadAndSaveFile(ctx, webResThumbnailUrl, dbItems.Video.WebThumbnailPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	next := []transactionalJob{}

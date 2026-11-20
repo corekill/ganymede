@@ -15,6 +15,16 @@ func TestParseKickTime(t *testing.T) {
 	}
 }
 
+func TestLargestSrcsetURL(t *testing.T) {
+	got := largestSrcsetURL("https://a/1080.webp?v=1 1920w, https://a/720.webp 1280w, https://a/160.webp 284w", "https://a/fallback")
+	if got != "https://a/1080.webp?v=1" {
+		t.Fatalf("got %q", got)
+	}
+	if got := largestSrcsetURL("", "https://a/fallback"); got != "https://a/fallback" {
+		t.Fatalf("fallback: got %q", got)
+	}
+}
+
 func TestKickChannelExtID(t *testing.T) {
 	ext := KickChannelExtID(668)
 	if ext != "kick:668" {

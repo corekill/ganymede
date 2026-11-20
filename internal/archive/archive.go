@@ -18,6 +18,7 @@ import (
 	"github.com/zibbp/ganymede/internal/channel"
 	"github.com/zibbp/ganymede/internal/config"
 	"github.com/zibbp/ganymede/internal/database"
+	"github.com/zibbp/ganymede/internal/exec"
 	"github.com/zibbp/ganymede/internal/platform"
 	"github.com/zibbp/ganymede/internal/queue"
 	"github.com/zibbp/ganymede/internal/tasks"
@@ -243,6 +244,8 @@ func (s *Service) ArchiveKickChannel(ctx context.Context, slug string) (*ent.Cha
 	if platformChannel.ProfileImageURL != "" {
 		if err := utils.DownloadFile(ctx, platformChannel.ProfileImageURL, imagePath); err != nil {
 			log.Error().Err(err).Msg("error downloading kick channel profile image")
+		} else if err := exec.EnsureImageMatchesExtension(ctx, imagePath); err != nil {
+			log.Warn().Err(err).Msg("error converting kick channel profile image")
 		}
 	}
 
