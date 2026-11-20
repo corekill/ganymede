@@ -107,13 +107,17 @@ func EmbedKickChatAssets(ctx context.Context, liveChatPath, tdlPath, outPath str
 	}
 
 	embedded := chat.Emotes{FirstParty: []chat.Party{}, ThirdParty: []chat.Party{}}
-	for id, name := range emoteNames {
+	for id := range emoteNames {
 		a, ok := assets[platform.KickEmoteURL(id)]
 		if !ok {
 			continue
 		}
+		// Name stays empty on purpose: the chat player keys unnamed emotes by
+		// ID, matching the position-based emote fragments. Named embedded
+		// emotes are matched by whitespace-separated word instead, which
+		// misses emotes glued to text. Fragments still carry the name.
 		embedded.FirstParty = append(embedded.FirstParty, chat.Party{
-			ID: id, ImageScale: 1, Data: a.data, Name: name, Width: a.width, Height: a.height,
+			ID: id, ImageScale: 1, Data: a.data, Width: a.width, Height: a.height,
 		})
 	}
 
