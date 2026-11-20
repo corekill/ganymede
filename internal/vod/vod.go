@@ -615,7 +615,8 @@ func (s *Service) GetChatEmotes(ctx context.Context, vodID uuid.UUID) (*platform
 
 	defer runtime.GC()
 
-	var emotes platform.Emotes
+	// Non-nil so an empty result serializes as [] rather than null.
+	emotes := platform.Emotes{Emotes: []platform.Emote{}}
 
 	// get streamer id from chat
 	streamerId, err := getStreamerIdFromInterface(chatData.Streamer.ID)
@@ -783,7 +784,7 @@ func (s *Service) GetChatBadges(ctx context.Context, vodID uuid.UUID) (*platform
 		}
 	}
 
-	var badgeResp platform.Badges
+	badgeResp := platform.Badges{Badges: []platform.Badge{}}
 
 	// If emebedded badges
 	if len(chatData.EmbeddedData.TwitchBadges) != 0 {
