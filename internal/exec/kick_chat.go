@@ -215,6 +215,25 @@ func SaveKickLiveChatToFile(ctx context.Context, slug, filename string) error {
 		}
 	}()
 
+	// Merge pending messages into the primary JSON on the same cadence as the
+	// Twitch recorder, so the main chat file stays current during long streams.
+	flushDone := make(chan struct{})
+	defer close(flushDone)
+	go func() {
+		ticker := time.NewTicker(liveChatMainFlushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-flushDone:
+				return
+			case <-ticker.C:
+				if err := writer.Flush(); err != nil {
+					logger.Error().Err(err).Msg("error flushing pending kick chat messages to primary JSON")
+				}
+			}
+		}
+	}()
+
 	kc := platform.NewKickConnection()
 	var saved atomic.Int64
 	backoff := initialBackoff
