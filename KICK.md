@@ -87,13 +87,58 @@ Twitch cesty zůstávají beze změny chování.
 | Render chatu | žádné chat-video pro Kick | přehrávání chatu v UI funguje (embedded emoty/badge) |
 | Upgrade 5.0.0 → 5.0.3 | migrace DB | otestováno na kopii produkční DB v testovacím CT |
 
-## 4. Nasazení
+## 4. Nasazení (provedeno 2026-11-20 ~06:12)
 
-Vlastní image (`Dockerfile` beze změn) → `ganymede-kick:<tag>`, buildovaný v testovacím
-CT 144 (`ganymede-kick-test`), přenesený do CT114 přes `docker save | docker load`.
-V `/root/docker-compose.yml` jen změna `image:` (záloha compose + `pg_dump` před přepnutím;
-přepínat jen když nic nenahrává). Rollback = vrátit `image: ghcr.io/zibbp/ganymede:5.0.0`
-a obnovit DB dump (nové sloupce staré verzi nevadí, ent je ignoruje).
+**Produkce (CT114) běží `ganymede-kick:v5.0.3-kick`** (commit `bc6cd6d`, větev `kick-live`).
+Tím se zároveň udělal upgrade upstreamu 5.0.0 → 5.0.3. Přepnuto, když nic nenahrávalo
+(guard: 0 live, 0 běžících jobů, 0 rozpracovaných VOD); DB kontejner se nerestartoval.
+Po nasazení ověřeno: bez chyb v logu, Twitch auth OK, migrace (8 kanálů → `twitch`),
+39 VOD a 7 hlídaných kanálů beze změny, periodická kontrola živých Twitch kanálů prošla.
 
-Přidání Kick kanálu: Admin → Channels → Add → **Kick** → slug (např. `xqc`), pak Admin →
-Watched → přidat kanál s „Watch Live“.
+- Image: `Dockerfile.kick` = upstream `ghcr.io/zibbp/ganymede:5.0.3` + naše Go binárky a
+  frontend (ffmpeg/yt-dlp/TwitchDownloader zůstávají přesně upstreamové).
+  Build: viz hlavička `Dockerfile.kick`; přenos do CT114:
+  `pct exec 144 -- docker save ganymede-kick:TAG | pct exec 114 -- docker load`.
+- Testovací **CT 144 `ganymede-kick-test`** (Debian 12, Docker, Go, zastavený, onboot=0):
+  build image + testy; `/opt/test` = testovací instance nad kopií produkční DB.
+  Dataset má `sync=disabled` jako CT114. Lze smazat (`pct destroy 144`), až nebude potřeba.
+- Zálohy před přepnutím: CT114 `/root/docker-compose.yml.bak-v5.0.0-2026-11-20`,
+  `/root/ganymede-db-pre5.0.3-kick-2026-11-20.dump`; host `/root/ganymede-kick-tmp/prod.dump*`.
+
+### Rollback
+```
+pct exec 114 -- bash -c 'cd /root && cp docker-compose.yml.bak-v5.0.0-2026-11-20 docker-compose.yml && docker compose up -d --no-deps ganymede'
+```
+Nové sloupce (`channels.platform`, `channels.ext_login`) stará verze ignoruje. Pokud by
+v DB už byly Kick kanály/VOD, stará verze je nebude umět zpracovat – v tom případě je
+předtím smazat, nebo obnovit dump (`pg_restore --clean`).
+
+### Jak přidat Kick kanál
+Admin → Channels → Add → přepínač **Kick** → slug z URL (`kick.com/<slug>`). Pak Admin →
+Watched → přidat ten kanál, „Watch Live“, kvalita, Archive chat. Pokud už existuje Twitch
+kanál stejného jména, Kick kanál dostane jméno `<slug>_kick` a vlastní složku.
+Pozor: většina hlídaných streamerů vysílá i na Kicku (často multistream stejného obsahu
+→ dvojnásobné místo na disku). Aktuálně na Kicku existují: flyguncz, chiquitai, haiset,
+fattypillow, fluffcz, herdyn, claina, agraelus.
+
+## 5. Testy
+
+- Celá sada `go test ./internal/... ./tests/...` zelená (24 balíčků) včetně integračních
+  testů proti skutečnému Twitchi (živé hlídání, kategorie/regex, VOD/klipy, crash recovery).
+- Nové testy: Kick adapter (živý test proti API za env `KICK_LIVE_TEST_CHANNEL`), převod
+  chatu (emoty/odpovědi/badge, průchod sdíleným převodníkem), WebP→JPEG/PNG.
+- End-to-end na testovací instanci, živý stream **haiset** na Kicku: detekce live,
+  nahrávání 25 min (přes 10min expiraci IVS tokenu bez výpadku), chat s českými zprávami,
+  emoty a badge vykreslené v přehrávači, finalizace do MP4, a obnova po pádu kontejneru
+  uprostřed nahrávání (watchdog dokončil částečný archiv).
+
+### Opravy upstreamu objevené cestou (týkají se i Kicku)
+- Chat přehrávač se neinicializoval, když VOD nemá žádné badge/emoty (endpoint vracel
+  `null` a přehrávač vyžadoval neprázdné pole).
+- Editace VOD odmítala jinou platformu než twitch/youtube.
+
+### Známá omezení
+- Jen live (Kick VOD/klipy ne), sub-only/18+ streamy neověřeny, render chatu do videa
+  pro Kick vypnutý (přehrávání chatu v UI funguje), sync chatu kotví na start nahrávání.
+- Kick API je neoficiální: změna/Cloudflare může detekci rozbít – projeví se jen u Kick
+  kanálů (warn v logu „kick live check failed“), Twitch tím není dotčen.
