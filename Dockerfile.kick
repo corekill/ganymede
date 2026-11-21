@@ -1,0 +1,43 @@
+# Kick fork image: rebuilds only what the fork changes (Go API/worker and the
+# Next.js frontend) and layers it onto the official upstream runtime image, so
+# ffmpeg, yt-dlp, TwitchDownloaderCLI, fonts and the process setup stay exactly
+# as upstream released them.
+#
+#   docker build -f Dockerfile.kick --build-arg GIT_SHA=$(git rev-parse --short HEAD) \
+#     --build-arg GIT_TAG=v5.0.3-kick -t ganymede-kick:v5.0.3-kick .
+ARG BASE_IMAGE=ghcr.io/zibbp/ganymede:5.0.3
+
+FROM golang:1.27-bookworm AS build-api
+ARG GIT_SHA
+ARG GIT_TAG
+ENV GIT_SHA=$GIT_SHA
+ENV GIT_TAG=$GIT_TAG
+RUN apt update && apt install -y make git
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN make build_server build_worker
+
+FROM node:26-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --force
+
+FROM node:26-alpine AS build-frontend
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/. .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM ${BASE_IMAGE}
+WORKDIR /opt/app
+RUN rm -rf .next public node_modules server.js package.json ganymede-api ganymede-worker
+COPY --from=build-api /app/ganymede-api /app/ganymede-worker ./
+COPY --from=build-frontend /app/public ./public
+COPY --from=build-frontend --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build-frontend --chown=nextjs:nodejs /app/.next/static ./.next/static
+LABEL org.opencontainers.image.source="https://github.com/corekill/ganymede" \
+      org.opencontainers.image.description="Ganymede with Kick live stream support"
