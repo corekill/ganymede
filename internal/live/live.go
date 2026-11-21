@@ -490,9 +490,10 @@ OUTER:
 					}
 				}
 
-				// Check if the stream is really live or if the API is just slow to update (GH#760)
-				// This is behind an experimental flag
-				if config.Get().Experimental.BetterLiveStreamDetectionAndCleanup {
+				// Check if the stream is really live or if the API is just slow to update (GH#760).
+				// Experimental for Twitch; always on for Kick, whose channel API keeps
+				// reporting a stream as live for a while after it ends.
+				if config.Get().Experimental.BetterLiveStreamDetectionAndCleanup || channelPlatform == utils.PlatformKick {
 					log.Debug().Msgf("checking if %s is really live", lwc.Edges.Channel.Name)
 					livePlatform, err := platform.Select(channelPlatform, s.PlatformTwitch, s.PlatformKick)
 					if err != nil {

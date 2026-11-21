@@ -196,6 +196,10 @@ func (k *KickConnection) newRequest(ctx context.Context, method, rawURL string, 
 // errKickNotFound marks a 404, which is not retried.
 var errKickNotFound = errors.New("kick resource not found")
 
+// errKickPlaylistNotFound means the channel reports a stream whose playlist no
+// longer exists, i.e. the broadcast has just ended.
+var errKickPlaylistNotFound = errors.New("kick playlist not found (stream ended)")
+
 // doJSON performs a request and decodes JSON into out, retrying transient
 // Cloudflare and server failures.
 func (k *KickConnection) doJSON(ctx context.Context, method, rawURL string, payload []byte, out any) error {
@@ -286,6 +290,9 @@ func (k *KickConnection) GetLiveMasterPlaylist(ctx context.Context, slug string)
 		return nil, fmt.Errorf("fetch kick playlist: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("fetch kick playlist: %w", errKickPlaylistNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetch kick playlist: status %d", resp.StatusCode)
 	}
@@ -563,12 +570,19 @@ func (k *KickConnection) GetClip(ctx context.Context, id string) (*ClipInfo, err
 	return nil, fmt.Errorf("kick clip archiving: %w", ErrNotSupported)
 }
 
+// CheckIfStreamIsLive fetches the stream's playlist rather than trusting the
+// channel document, which keeps reporting a stream as live for a while after
+// it ends (the playlist then returns 404).
 func (k *KickConnection) CheckIfStreamIsLive(ctx context.Context, channelName string) (bool, error) {
-	ch, err := k.GetKickChannel(ctx, channelName)
-	if err != nil {
-		return false, err
+	_, err := k.GetLiveMasterPlaylist(ctx, channelName)
+	if err == nil {
+		return true, nil
 	}
-	return ch.Livestream != nil && ch.Livestream.IsLive && ch.PlaybackURL != "", nil
+	var noStreams ErrorNoStreamsFound
+	if errors.As(err, &noStreams) || errors.Is(err, errKickPlaylistNotFound) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (k *KickConnection) GetStreams(ctx context.Context, limit int) ([]LiveStreamInfo, error) {

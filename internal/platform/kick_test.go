@@ -62,6 +62,16 @@ func TestKickLive(t *testing.T) {
 	for _, v := range pl.Variants {
 		t.Logf("variant video=%q uri=%.60s", v.Video, v.URI)
 	}
+	live, err := k.CheckIfStreamIsLive(ctx, slug)
+	if err != nil || !live {
+		t.Fatalf("CheckIfStreamIsLive(%s) = %v, %v; want true", slug, live, err)
+	}
+	if offline := os.Getenv("KICK_OFFLINE_TEST_CHANNEL"); offline != "" {
+		live, err := k.CheckIfStreamIsLive(ctx, offline)
+		if err != nil || live {
+			t.Fatalf("CheckIfStreamIsLive(%s) = %v, %v; want false", offline, live, err)
+		}
+	}
 	key, cluster := k.KickRealtimeCredentials(ctx, 668)
 	t.Logf("pusher %s/%s", key, cluster)
 	emotes, err := k.GetChannelEmotes(ctx, slug)
